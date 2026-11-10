@@ -1,0 +1,12 @@
+{
+  "market": "https://deepseek.stream",
+  "pluginId": "@local/desk-workbench",
+  "name": "成果工作台 · DSH Dock",
+  "version": "0.3.1",
+  "publisher": "mimiqiao",
+  "status": "pending_review",
+  "url": "https://deepseek.stream/plugins/%40local%2Fdesk-workbench",
+  "verifiedAt": "2026-11-10T15:02:21.002416+08:00",
+  "githubRelease": "https://github.com/mimiqiao/DSH-Dock/releases/tag/v0.3.1",
+  "publiclyInstallable": false
+}
