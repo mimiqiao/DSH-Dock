@@ -1,1 +1,7 @@
-{"meta":{"title":"Results Workbench","description":"Automatically organize work across sessions into an interactive desk, preview results, and return to the source conversation."},"panel":"Results Workbench"}
+{
+  "meta": {
+    "title": "Results Workbench",
+    "description": "Browse results across sessions with a visual desktop or Dock, stars, saved versions, reuse and work review."
+  },
+  "panel": "Results Workbench"
+}

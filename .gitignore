@@ -8,3 +8,4 @@ node_modules/
 docs/verification/harness-live.png
 docs/verification/real-gallery-fixed.png
 docs/verification/real-icon-recovered.png
+dist/
