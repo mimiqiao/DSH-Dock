@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="成果工作台">
+  <title>成果工作台</title>
+  <!-- A desk surface with three gathered objects resting on it. -->
+  <rect x="8" y="38" width="48" height="5" rx="2.5" fill="currentColor" opacity="0.9"/>
+  <rect x="13" y="43" width="4" height="13" rx="1.6" fill="currentColor" opacity="0.55"/>
+  <rect x="47" y="43" width="4" height="13" rx="1.6" fill="currentColor" opacity="0.55"/>
+  <!-- Framed picture: a produced result. -->
+  <rect x="14" y="15" width="16" height="19" rx="2" fill="none" stroke="currentColor" stroke-width="2.6"/>
+  <path d="M17 31.5 L22 25 L26 29 L29 25.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+  <!-- Sheet of paper: a produced document. -->
+  <path d="M37 17 H44 L49 22 V38 H37 Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>
+  <path d="M44 17 V22 H49" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>
+  <path d="M40.5 27 H45.5 M40.5 31.5 H45.5 M40.5 35 H43.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
+</svg>

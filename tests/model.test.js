@@ -1,0 +1,118 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { classify, fold, initialState, viewOf, collectDesks } from '../model.js'
+let seq = 0
+const event = (type, data) => ({ type, data, seq: ++seq, time: seq * 1000 })
+const user = text => event('user/message', { content: [{ type: 'text', text }] })
+const call = (id, name, args) => event('tool/call', { callId: id, name, arguments: JSON.stringify(args) })
+const result = (id, value, isError = false) => event('tool/result', { message: { toolCallId: id, isError, content: [{ type: 'text', text: JSON.stringify(value) }] } })
+test('formats and HTML semantics', () => {
+  for (const [path, kind] of [['a.pptx','presentation'],['a.html','app'],['a.png','image'],['a.mp4','video'],['a.mp3','audio'],['a.md','document'],['a.xlsx','data'],['a.py','code'],['a.zip','other']]) assert.equal(classify(path), kind)
+  assert.equal(classify('a.html', '<section class="slide">'), 'presentation')
+  assert.equal(classify('a.html', '', '', '做一份PPT'), 'presentation')
+})
+test('persisted pending survives restore; success uses canonical path and failed tools produce nothing', () => {
+  let s = fold(initialState(), call('1','write',{file_path:'a.html',content:'<section class="slide">'}))
+  s = fold(JSON.parse(JSON.stringify(s)), result('1',{path:'/workspace/a.html'}))
+  assert.equal(s.items[0].path, '/workspace/a.html'); assert.equal(s.items[0].kind, 'presentation')
+  s = fold(s, call('2','write',{file_path:'/bad.py'})); s = fold(s,result('2',{},true))
+  assert.equal(s.items.length,1); assert.deepEqual(s.pending,{})
+  assert.equal('pending' in viewOf(s),false)
+})
+test('same call IDs in separate sessions do not leak', () => {
+  const a = fold(initialState(),call('same','write',{file_path:'/a.py'}))
+  const b = fold(initialState(),call('same','write',{file_path:'/b.md'}))
+  assert.equal(fold(a,result('same',{})).items[0].kind,'code')
+  assert.equal(fold(b,result('same',{})).items[0].kind,'document')
+})
+test('many deliverables retained; repeated edits and delivery aggregate revisions', () => {
+  let s=initialState()
+  for(let i=0;i<30;i++) s=fold(s,event('deliverables/presented',{files:[{path:`/work/${i}.md`}]}))
+  assert.equal(s.items.length,30)
+  s=fold(s,call('e','edit',{file_path:'/work/0.md'}));s=fold(s,result('e',{path:'/work/0.md'}))
+  assert.equal(s.items.length,30);assert.equal(s.items[0].revisions,2)
+})
+test('discussion-only sessions remain searchable and grouped alongside multiple outputs', () => {
+  let s=fold(initialState(),user('研究一下城市交通'))
+  s=fold(s,event('assistant/message',{message:{content:[{type:'text',text:'先分析公共交通。'}]}}))
+  s=fold(s,event('assistant/message',{message:{content:[{type:'text',text:'补充步行数据。'}]}}))
+  assert.equal(s.items.length,1);assert.equal(s.items[0].topic,'研究')
+  s=fold(s,event('deliverables/presented',{files:[{path:'/a.pptx'},{path:'/b.csv'}]}))
+  assert.equal(s.items.length,3)
+  const desks=collectDesks({ abc:{values:{desk:viewOf(s),title:'交通'}} })
+  assert.equal(desks[0].title,'交通');assert.equal(desks[0].sessionId,'abc')
+})
+test('running empty sessions and explicit terminal outcomes remain visible', () => {
+  let s=fold(initialState(),event('turn/start',{}));assert.equal(s.status,'running')
+  assert.equal(collectDesks({a:{values:{desk:viewOf(s)}}}).length,1)
+  s=fold(s,event('turn/end',{reason:'blocked'}));assert.equal(s.status,'problem');assert.equal(s.running,false)
+})
+test('deterministic replay and image attachment metadata',()=>{
+  const events=[user('设计海报'),call('g','generate',{}),event('tool/result',{message:{toolCallId:'g',content:[{type:'image',attachment:{attachmentId:'img1',mediaType:'image/png',width:100,height:100,bytes:200,name:'海报'}}]}})]
+  const a=events.reduce(fold,initialState());assert.deepEqual(a,events.reduce(fold,initialState()));assert.equal(a.items[0].kind,'image')
+})
+test('real Harness metadata resolves relative writes using canonical file path',()=>{
+ let s=fold(initialState({cwd:'/workspace'}),call('r','write',{file_path:'slides.html',content:'<section class="slide">'}))
+ s=fold(s,event('tool/result',{meta:{path:'/workspace/slides.html',operation:'create',diffs:[]},message:{toolCallId:'r',content:[{type:'text',text:'Created /workspace/slides.html'}]}}))
+ assert.equal(s.items[0].path,'/workspace/slides.html')
+ assert.equal(s.items[0].kind,'presentation')
+ s=fold(s,event('deliverables/presented',{files:[{path:'/workspace/slides.html'}]}))
+ assert.equal(s.items.length,1)
+})
+test('partial patch collects completed paths, skips failures and removes deleted files',()=>{
+ let s=fold(initialState({cwd:'/workspace'}),event('deliverables/presented',{files:[{path:'/workspace/old.py'}]}))
+ s=fold(s,call('p','apply_patch',{input:'*** Begin Patch\n*** Add File: ok.py\n+x\n*** Add File: skipped.py\n+y\n*** End Patch'}))
+ s=fold(s,event('tool/result',{message:{toolCallId:'p',content:[{type:'text',text:'Patch stopped after 2 of 3 operations.\nCompleted:\nA ok.py\nD old.py\nNot executed:\n- operation 3 (add skipped.py)'}]}}))
+ assert.deepEqual(s.items.map(i=>i.path),['/workspace/ok.py'])
+})
+test('userQuestions summary overrides ready/running with actionable attention',()=>{
+ const desks=collectDesks({a:{values:{desk:viewOf(initialState()),userQuestions:{active:[{callId:'q'}]}}}})
+ assert.equal(desks[0].status,'attention')
+})
+test('assistant local delivery links discover shell-generated works without collecting web research links',()=>{
+ let s=initialState({cwd:'/workspace'})
+ s=fold(s,event('assistant/message',{message:{content:[{type:'text',text:'[演示](</workspace/My Deck.html>)\n[资料](https://example.com/news.html)\n[代码](./tool.py:12)'}]}}))
+ assert.equal(s.items.filter(i=>i.path).length,2)
+ assert.ok(s.items.find(i=>i.path==='/workspace/My Deck.html'))
+ assert.ok(s.items.find(i=>i.path==='/workspace/tool.py'))
+})
+test('legacy/unavailable conversations stay visible by real title without invented summaries',()=>{
+ const desks=collectDesks({}, {old:{id:'old',title:'历史研究',updatedAt:123,formatStatus:'migration-required'},blank:{id:'blank',blank:true}})
+ assert.equal(desks.length,1);assert.equal(desks[0].status,'unavailable');assert.equal(desks[0].unindexed,true)
+ assert.equal(desks[0].items[0].title,'历史研究');assert.equal(desks[0].items[0].topic,'待整理')
+})
+test('read_image stores canonical path and durable attachment as one work, preserving attachment on later links',()=>{
+ let s=initialState()
+ s=fold(s,call('image','read_image',{file_path:'/tmp/desk-icon.png'}))
+ s=fold(s,event('tool/result',{meta:{path:'/private/tmp/desk-icon.png'},message:{toolCallId:'image',content:[{type:'image',attachment:{attachmentId:'sha256:image',name:'desk-icon.png',mediaType:'image/webp',width:64,height:64,bytes:824}}]}}))
+ assert.equal(s.items.length,1)
+ assert.equal(s.items[0].path,'/private/tmp/desk-icon.png')
+ assert.equal(s.items[0].attachmentId,'sha256:image')
+ s=fold(s,event('assistant/message',{message:{content:[{type:'text',text:'[图标](/private/tmp/desk-icon.png)'}]}}))
+ assert.equal(s.items.filter(i=>i.kind==='image').length,1)
+ assert.equal(s.items.find(i=>i.kind==='image').attachmentId,'sha256:image')
+})
+test('opaque attachment names get useful labels; unrelated same-name images stay separate',()=>{
+ let s=initialState()
+ for(let i=0;i<2;i++)s=fold(s,event('tool/result',{message:{content:[{type:'image',attachment:{attachmentId:'sha256:'+i,name:'a'.repeat(64),mediaType:'image/webp',width:1183,height:530,bytes:100}}]}}))
+ assert.equal(s.items.length,2)
+ assert.equal(s.items[0].title,'图片 · 1183 × 530')
+ assert.equal(s.items[0].attachmentName,'a'.repeat(64))
+})
+test('file mutations invalidate stale saved previews rather than presenting old image as new output',()=>{
+ let s=fold(initialState(),call('r','read_image',{file_path:'/a.png'}))
+ s=fold(s,event('tool/result',{meta:{path:'/a.png'},message:{toolCallId:'r',content:[{type:'image',attachment:{attachmentId:'old',mediaType:'image/png',name:'a.png'}}]}}))
+ s=fold(s,call('w','write',{file_path:'/a.png',content:'new image content'}));s=fold(s,result('w',{path:'/a.png'}))
+ assert.equal(s.items.length,1);assert.equal(s.items[0].attachmentId,undefined)
+})
+test('read-only file metadata is not treated as a produced work',()=>{
+ let s=fold(initialState(),call('r','read',{file_path:'/source.md'}))
+ s=fold(s,event('tool/result',{meta:{path:'/source.md'},message:{toolCallId:'r',content:[{type:'text',text:'source content'}]}}))
+ assert.equal(s.items.length,0)
+})
+test('completed file moves preserve proven aliases for stable personal metadata',()=>{
+ let s=fold(initialState({cwd:'/work'}),event('deliverables/presented',{files:[{path:'/work/original.md'}]}))
+ s=fold(s,call('move','apply_patch',{input:'*** Begin Patch\n*** Update File: original.md\n*** Move to: renamed.md\n@@\n-old\n+new\n*** End Patch'}))
+ s=fold(s,event('tool/result',{message:{toolCallId:'move',content:[{type:'text',text:'Success. Updated the following files:\nM renamed.md'}]}}))
+ assert.equal(s.items.length,1);assert.equal(s.items[0].path,'/work/renamed.md');assert.deepEqual(s.items[0].previousPaths,['/work/original.md'])
+})

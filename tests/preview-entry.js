@@ -1,0 +1,18 @@
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { fold, initialState, viewOf } from '../model.js'
+const result=(id,path)=>({type:'tool/result',data:{message:{toolCallId:id,content:[{type:'text',text:JSON.stringify({path})}]}}})
+let seq=0
+function desk(request,files){let s=initialState();const ev=(type,data)=>({type,data,seq:++seq,time:Date.now()});s=fold(s,ev('user/message',{content:[{type:'text',text:request}]}));for(const [i,path]of files.entries()){s=fold(s,ev('tool/call',{callId:String(i),name:'write',arguments:JSON.stringify({file_path:path})}));s=fold(s,{...result(String(i),path),seq:++seq,time:Date.now()})}s=fold(s,ev('assistant/message',{message:{content:[{type:'text',text:'已完成这一轮工作，打开作品看看，再继续修改。'}]}}));return viewOf(fold(s,ev('turn/end',{reason:{kind:'completed'}})))}
+const snapshots={a:{values:{title:'秋日工作台 · 演示设计',desk:desk('做一份 HTML 演示稿',['/fixtures/deck.html','/fixtures/example.pptx'])}},b:{values:{title:'品牌与网页',desk:desk('设计网页和图片',['/fixtures/site.html','/fixtures/poster.svg','/fixtures/plan.md'])}},c:{values:{title:'销售数据与工具',desk:desk('分析数据并编程',['/fixtures/sales.csv','/fixtures/tool.py'])}},d:{values:{title:'听见和看见',desk:desk('制作音频视频',['/fixtures/tone.wav','/fixtures/movie.webm','/fixtures/archive.zip'])}},e:{values:{title:'一个还没想清楚的问题',desk:{...desk('研究一下我的工作方式',[]),status:'attention'}}}}
+
+// Reproduce a cleaned temporary file with a durable image, plus a genuinely missing file.
+let imageDesk=snapshots.b.values.desk
+for (const path of ['/fixtures/expired.png','/fixtures/missing.png'])imageDesk=fold({...imageDesk,pending:{}},{type:'deliverables/presented',seq:++seq,time:Date.now(),data:{files:[{path}]}})
+imageDesk=fold({...imageDesk,pending:{}},{type:'tool/call',seq:++seq,time:Date.now(),data:{callId:'saved',name:'read_image',arguments:JSON.stringify({file_path:'/fixtures/expired.png'})}})
+imageDesk=fold(imageDesk,{type:'tool/result',seq:++seq,time:Date.now(),data:{meta:{path:'/fixtures/expired.png'},message:{toolCallId:'saved',content:[{type:'image',attachment:{attachmentId:'saved',mediaType:'image/svg+xml',name:'expired.png',width:600,height:400,bytes:200}}]}}})
+snapshots.b.values.desk=viewOf(imageDesk)
+const services={uiWorkspace:{openSession:id=>{window.__openedSession=id}},layout:{selectPanel:id=>{window.__panel=id}},sessions:{create:async options=>{window.__createdSessionOptions=options;return 'qa-new-session'},using:async(id,options,callback)=>{const response=await fetch('/api/file?path='+encodeURIComponent('/fixtures/poster.svg'),{signal:options.signal});const data=Array.from(new Uint8Array(await response.arrayBuffer()));return callback({binding:{session:{readAttachment:async()=>({ok:true,value:{data}}),prompt:async(content,mode,signal,requestId)=>{window.__submittedPrompts=window.__submittedPrompts||[];window.__submittedPrompts.push({content,mode,requestId});return{ok:true}}}}})}}}
+const ctx={get:n=>services[n],effect:f=>f(),locale:{register:()=>()=>{},bind:()=>key=>key==='panel'?'成果工作台':key},slots:{inject:(name,f)=>f(),register:(spec,render)=>{if(spec.name==='main')window.__renderDesk=render;return()=>{}}}}
+window.__ModuleLoader__={load:({factory})=>{const plugin=factory(n=>{if(n==='react')return React;throw new Error(n)});plugin.apply(ctx)}}
+const script=document.createElement('script');script.src='/client.js';script.onload=()=>createRoot(document.getElementById('root')).render(window.__renderDesk({ctx,useSessions:selector=>selector({byId:{...Object.fromEntries(Object.entries(snapshots).map(([id,s])=>[id,{id,title:s.values.title}])),...(new URLSearchParams(location.search).has('unindexed')?{unread:{id:'unread',title:'你现在在哪个分支？'}}:{})},projectionsBySession:snapshots})}));document.head.append(script)

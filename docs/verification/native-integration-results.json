@@ -1,0 +1,28 @@
+{
+  "threeTypes": [
+    {
+      "name": "qa-slides.html",
+      "targetSessionId": "session-21aa5182-52af-448a-93c9-5f542355e454",
+      "inputType": "file",
+      "bytes": 699,
+      "derivedResult": true
+    },
+    {
+      "name": "qa-image.png",
+      "targetSessionId": "session-993af2d2-6f41-463b-9a85-cb03b9375217",
+      "inputType": "file",
+      "bytes": 74,
+      "derivedResult": true
+    },
+    {
+      "name": "qa-notes.md",
+      "targetSessionId": "session-7e5729a2-f942-40d2-b378-ab8d31570876",
+      "inputType": "file",
+      "bytes": 46,
+      "derivedResult": true
+    }
+  ],
+  "versionSurvivedOriginalMove": true,
+  "retryUserMessages": 1,
+  "unauthenticatedStatus": 401
+}

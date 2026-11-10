@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+# Screenshots captured from personal sessions remain local.
+docs/verification/harness-live.png
+docs/verification/real-gallery-fixed.png
+docs/verification/real-icon-recovered.png

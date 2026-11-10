@@ -1,0 +1,13 @@
+import finder from './assets/macos/finder.png'
+import settings from './assets/macos/settings.png'
+import folder from './assets/macos/folder.png'
+import document from './assets/macos/document.png'
+import downloads from './assets/macos/downloads.png'
+import preview from './assets/macos/preview.png'
+import textedit from './assets/macos/textedit.png'
+import music from './assets/macos/music.png'
+import video from './assets/macos/video.png'
+import terminal from './assets/macos/terminal.png'
+import time from './assets/macos/time.png'
+import wallpaper from './assets/macos/wallpaper.jpg'
+export const MAC={finder,settings,folder,document,downloads,preview,textedit,music,video,terminal,time,wallpaper}
